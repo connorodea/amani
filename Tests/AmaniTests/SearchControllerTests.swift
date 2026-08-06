@@ -65,4 +65,70 @@ final class SearchControllerTests: XCTestCase {
         }
         wait(for: [expectation], timeout: 1.0)
     }
+
+    // MARK: - Selection
+
+    private func threeResultController() -> SearchController {
+        let provider = FakeProvider(id: "p", results: [
+            SearchResult(id: "1", title: "One", subtitle: "", icon: .system(symbolName: "1"), score: 0.9, action: .copyToClipboard("1")),
+            SearchResult(id: "2", title: "Two", subtitle: "", icon: .system(symbolName: "2"), score: 0.8, action: .copyToClipboard("2")),
+            SearchResult(id: "3", title: "Three", subtitle: "", icon: .system(symbolName: "3"), score: 0.7, action: .copyToClipboard("3")),
+        ])
+        return SearchController(providers: [provider], debounceMilliseconds: 0, providerTimeoutMilliseconds: 200)
+    }
+
+    private func populateResults(_ controller: SearchController, query: String = "q") {
+        let expectation = expectation(description: "search completes")
+        controller.performSearch(query) { expectation.fulfill() }
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    func testMoveSelectionAdvancesAndClampsAtEnd() {
+        let controller = threeResultController()
+        populateResults(controller)
+
+        controller.moveSelection(by: 1)
+        XCTAssertEqual(controller.selectedIndex, 1)
+
+        controller.moveSelection(by: 1)
+        controller.moveSelection(by: 1) // would go to 3, out of bounds for a 3-item list
+        XCTAssertEqual(controller.selectedIndex, 2)
+    }
+
+    func testMoveSelectionClampsAtStart() {
+        let controller = threeResultController()
+        populateResults(controller)
+
+        controller.moveSelection(by: -1)
+        XCTAssertEqual(controller.selectedIndex, 0)
+    }
+
+    func testMoveSelectionIsNoOpWithNoResults() {
+        let controller = SearchController(providers: [], debounceMilliseconds: 0, providerTimeoutMilliseconds: 200)
+        controller.moveSelection(by: 1)
+        XCTAssertEqual(controller.selectedIndex, 0)
+    }
+
+    func testSelectedResultReflectsSelectedIndex() {
+        let controller = threeResultController()
+        populateResults(controller)
+
+        controller.moveSelection(by: 1)
+        XCTAssertEqual(controller.selectedResult?.id, "2")
+    }
+
+    func testSelectedResultIsNilWithNoResults() {
+        let controller = SearchController(providers: [], debounceMilliseconds: 0, providerTimeoutMilliseconds: 200)
+        XCTAssertNil(controller.selectedResult)
+    }
+
+    func testSelectedIndexResetsWhenResultsChange() {
+        let controller = threeResultController()
+        populateResults(controller)
+        controller.moveSelection(by: 1)
+        XCTAssertEqual(controller.selectedIndex, 1)
+
+        populateResults(controller, query: "q2") // same provider, fresh performSearch call
+        XCTAssertEqual(controller.selectedIndex, 0)
+    }
 }
