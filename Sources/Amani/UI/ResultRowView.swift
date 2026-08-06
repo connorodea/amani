@@ -21,12 +21,11 @@ struct ResultRowView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            // A flat neutral fill on selection, not a colored border — command palettes in the
+            // Vercel/Linear/Raycast style reserve accent color for rare, deliberate moments and
+            // keep row-selection itself strictly grayscale.
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isSelected ? Color.primary.opacity(0.08) : Color.clear)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor.opacity(0.35) : .clear, lineWidth: 1)
         )
     }
 
