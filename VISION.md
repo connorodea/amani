@@ -201,6 +201,11 @@ Todoist once a tracker is set up for this repo, matching the pattern used on you
   before any integration work starts.
 - **Saddlepoint** — working name for the cloud-hosted counterpart to Amani M1, integrating
   directly with it (local app ↔ cloud service split). Named 2026-08-06; not yet scoped.
+- **Ehf** ("E = Hf" — the Planck-Einstein relation, energy as frequency) — working name for
+  "the engine," Amani's core routing/decision component (the "brain" in the nervous-system
+  metaphor). Named 2026-08-06; not yet scoped — which layer this actually names (the M1
+  SearchController, a future cross-ecosystem reasoning core, or something else) needs
+  clarifying before it's built.
 
 ## Changelog
 
