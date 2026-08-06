@@ -50,14 +50,20 @@ final class OverlayWindowController {
                 }
             )
         )
+        // Borderless, not `.titled` — `.titled` (even with titleVisibility hidden) leaves a
+        // visible native titlebar strip and window-chrome border, confirmed by direct visual
+        // inspection on real hardware. `.borderless` + `.nonactivatingPanel` is the standard
+        // recipe for a true chromeless Spotlight/Alfred-style overlay.
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 80),
-            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
+        // Required for SwiftUI's translucent materials (.regularMaterial) to actually blur
+        // the desktop behind the panel instead of rendering as a flat opaque fill.
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
         panel.isMovableByWindowBackground = true
         panel.level = .floating
         panel.hasShadow = true

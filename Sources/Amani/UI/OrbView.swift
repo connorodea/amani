@@ -76,11 +76,16 @@ struct OrbView: NSViewRepresentable {
         scene.rootNode.addChildNode(orbNode)
 
         let glowSphere = SCNSphere(radius: 1.25)
-        glowSphere.firstMaterial?.diffuse.contents = NSColor.clear
+        // Diffuse must be fully OPAQUE (alpha 1) black — under `.aOne` transparency mode the
+        // diffuse alpha channel *is* the material's opacity, so `.clear` (alpha 0) made the
+        // entire glow sphere invisible regardless of emission. Black diffuse contributes no
+        // reflected light of its own, while alpha 1 lets the additive emission actually render.
+        glowSphere.firstMaterial?.diffuse.contents = NSColor.black
         glowSphere.firstMaterial?.emission.contents = NSColor.controlAccentColor
         glowSphere.firstMaterial?.emission.intensity = 0.35
         glowSphere.firstMaterial?.transparencyMode = .aOne
         glowSphere.firstMaterial?.blendMode = .add
+        glowSphere.firstMaterial?.lightingModel = .constant // glow shouldn't itself be lit/shaded
         let glowNode = SCNNode(geometry: glowSphere)
         glowNode.name = "glow"
         scene.rootNode.addChildNode(glowNode)
@@ -91,12 +96,24 @@ struct OrbView: NSViewRepresentable {
         cameraNode.position = SCNVector3(0, 0, 4)
         scene.rootNode.addChildNode(cameraNode)
 
-        let light = SCNLight()
-        light.type = .omni
-        let lightNode = SCNNode()
-        lightNode.light = light
-        lightNode.position = SCNVector3(2, 2, 4)
-        scene.rootNode.addChildNode(lightNode)
+        // Key light: gives the sphere a clear highlight + shading gradient so it reads as a
+        // 3D form rather than a flat-shaded dot, even at icon size.
+        let keyLight = SCNLight()
+        keyLight.type = .omni
+        keyLight.intensity = 900
+        let keyLightNode = SCNNode()
+        keyLightNode.light = keyLight
+        keyLightNode.position = SCNVector3(2, 2, 4)
+        scene.rootNode.addChildNode(keyLightNode)
+
+        // Ambient fill so the shadowed side of the sphere isn't pure black at this small size.
+        let ambientLight = SCNLight()
+        ambientLight.type = .ambient
+        ambientLight.intensity = 250
+        ambientLight.color = NSColor.controlAccentColor
+        let ambientLightNode = SCNNode()
+        ambientLightNode.light = ambientLight
+        scene.rootNode.addChildNode(ambientLightNode)
 
         return scene
     }
