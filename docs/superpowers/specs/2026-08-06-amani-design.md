@@ -1,8 +1,9 @@
 # Amani — Design Spec
 
-**Date:** 2026-08-06
+**Date:** 2026-08-06 (revised same day: multi-trigger activation — hotkey + modifier-hold +
+menu bar — replacing the single-hotkey-only design)
 **Status:** Approved for M1 implementation planning
-**Repo:** `connorodea/amani` (to be created on GitHub, MIT license)
+**Repo:** `connorodea/amani` (public, MIT license — https://github.com/connorodea/amani)
 
 ## 1. Concept
 
@@ -58,7 +59,7 @@ Spotlight/Alfred/Raycast UX.
 
 ```
 Amani.app
-├── AppDelegate            — lifecycle, global hotkey registration, panel show/hide
+├── AppDelegate            — lifecycle, activation trigger registration, panel show/hide
 ├── OverlayWindow (NSPanel)— borderless, floating, centered, key window on activate
 ├── SearchView (SwiftUI)   — text field + results list, Spotlight-style
 ├── SearchController       — owns query state, debounces input, fans out to providers
@@ -66,11 +67,35 @@ Amani.app
 │   ├── AppLauncherProvider — enumerates + launches .app bundles via NSWorkspace
 │   ├── FileSearchProvider  — shells out to `mdfind` for Spotlight-indexed file search
 │   └── CalculatorProvider  — local expression evaluation, no shell-out
-├── HotkeyManager           — global hotkey capture (Cmd+Space), via an existing
-│                             open-source Swift hotkey library rather than hand-rolled
-│                             Carbon/Quartz event-tap code
-└── SetupAssistant          — first-run flow: Accessibility permission, guided steps to
-                              disable Spotlight's own Cmd+Space binding in System Settings
+├── ActivationManager       — owns every way to summon Amani (protocol-based, so new
+│                             trigger types add cleanly — "all of them," not just one)
+│   ├── HotkeyTrigger       — global key-combo capture (default Cmd+Space), via an
+│   │                         existing open-source Swift hotkey library rather than
+│   │                         hand-rolled Carbon/Quartz event-tap code
+│   ├── ModifierHoldTrigger — hold a lone modifier key (default: Cmd, 5.0s) with no
+│   │                         other key pressed during the hold — a raw global
+│   │                         `.flagsChanged` NSEvent monitor, since standalone-modifier
+│   │                         gestures aren't covered by combo-hotkey libraries
+│   └── MenuBarTrigger      — NSStatusItem in the menu bar; click opens the overlay
+├── MenuBarController       — owns the persistent NSStatusItem (icon, click handler,
+│                             right-click menu: Preferences/Quit) — always present,
+│                             independent of Accessibility permission state
+└── SetupAssistant          — first-run flow: Accessibility permission, per-trigger
+                              enable/disable + hotkey/duration configuration, guided
+                              steps to disable Spotlight's own Cmd+Space binding
+```
+
+Every `ActivationTrigger` calls the same `OverlayWindow.toggle()` — the overlay doesn't know
+or care which trigger summoned it. This is what makes "all of them" cheap: each trigger is a
+small, independent, individually toggleable unit behind one protocol.
+
+```swift
+protocol ActivationTrigger {
+    var id: String { get }
+    var isEnabled: Bool { get set }
+    func start(onActivate: @escaping () -> Void)
+    func stop()
+}
 ```
 
 Result providers are a protocol (`ResultProvider`) from day one — even though M1 only ships
@@ -86,11 +111,33 @@ protocol ResultProvider {
 
 ### 4.2 Components
 
-- **HotkeyManager**: registers Cmd+Space as a global hotkey. On first launch, detects whether
-  macOS Spotlight still owns that binding (best-effort, via reading the user's Symbolic
-  HotKeys plist) and — if so — walks the user through disabling it in System Settings >
-  Keyboard Shortcuts (Apple provides no API to do this programmatically; it's a guided manual
-  step, done once).
+- **ActivationManager**: holds the list of registered `ActivationTrigger`s, starts/stops each
+  based on its `isEnabled` state (persisted in `UserDefaults`), and routes every trigger's
+  activation callback to the same `OverlayWindow.toggle()`. Adding a future trigger type
+  (e.g. a Stream Deck button, a Shortcuts.app action) means writing one new
+  `ActivationTrigger` conformance — no changes anywhere else.
+- **HotkeyTrigger**: registers a global key-combo (default Cmd+Space) via an existing,
+  actively-maintained open-source Swift hotkey library (e.g. `HotKey`). On first launch,
+  detects whether macOS Spotlight still owns that binding (best-effort, via reading the
+  user's Symbolic HotKeys plist) and — if so — walks the user through disabling it in System
+  Settings > Keyboard Shortcuts (Apple provides no API to do this programmatically; it's a
+  guided manual step, done once). Combo is user-configurable in Preferences; Cmd+Space is
+  just the default.
+- **ModifierHoldTrigger**: watches global `.flagsChanged` events for a single configured
+  modifier key (default: Cmd) being held alone. Starts a timer on key-down; cancels
+  immediately if any other key or modifier is pressed before the threshold (default 5.0s,
+  configurable) elapses, or if the modifier is released early; fires the activation callback
+  once the threshold is reached while still held alone. This is intentionally a separate,
+  simpler event path from `HotkeyTrigger` — combo-hotkey libraries match specific key+modifier
+  combinations, not "this modifier alone, held for N seconds," so it needs its own raw
+  `NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged)` listener and a small internal
+  state machine (idle → holding → fired/cancelled).
+- **MenuBarTrigger** + **MenuBarController**: a persistent `NSStatusItem` — present the moment
+  the app launches, independent of Accessibility permission (menu bar icons don't need it).
+  Left-click toggles the overlay (same path as every other trigger); right-click shows a small
+  menu (Preferences, Quit). This is also the reliability fallback: if Accessibility permission
+  is denied so `HotkeyTrigger`/`ModifierHoldTrigger` can't function, the menu bar icon still
+  works, so Amani is never fully inaccessible.
 - **OverlayWindow**: a floating, non-activating-by-default `NSPanel`, always centered on the
   active screen, dismissed on Escape or focus loss.
 - **SearchController**: single source of truth for the current query; debounces keystrokes
@@ -106,8 +153,12 @@ protocol ResultProvider {
 - **CalculatorProvider**: parses simple arithmetic expressions in-process, shown as the first
   result when the query looks numeric.
 - **SetupAssistant**: run once on first launch; requests Accessibility permission (needed for
-  the global hotkey + eventually for agent process control in M2), and hands off to the guided
-  Spotlight-disable step.
+  `HotkeyTrigger`/`ModifierHoldTrigger` + eventually for agent process control in M2), hands
+  off to the guided Spotlight-disable step, and presents the trigger list so the user can
+  toggle each on/off and adjust the hotkey combo / hold duration. Defaults: `HotkeyTrigger`
+  and `MenuBarTrigger` on, `ModifierHoldTrigger` on with a 5.0s Cmd hold — all three ship
+  enabled out of the box, matching "we should have all of them," but every one is a single
+  toggle away from off if a trigger conflicts with something else on the user's system.
 
 ### 4.3 Data flow
 
@@ -128,9 +179,14 @@ No persistence needed in M1 beyond the app index cache (rebuilt on `/Application
 - A slow or failing provider (e.g. `mdfind` hanging) must not block the others — each
   provider call has a short timeout (~200ms) and partial results are shown; a provider that
   times out just contributes nothing for that keystroke.
-- If Accessibility permission is denied, the app still launches and shows the panel via a
-  fallback in-app menu-bar icon click (hotkey won't work without it) with a persistent nudge
-  to grant permission.
+- If Accessibility permission is denied, `HotkeyTrigger` and `ModifierHoldTrigger` can't
+  function (both require it), but `MenuBarTrigger` doesn't and keeps working — the app is
+  never fully inaccessible — with a persistent nudge to grant permission so the other two
+  triggers activate.
+- `ModifierHoldTrigger`'s state machine must fail safe: any ambiguous event (another key down,
+  the modifier released before threshold, focus lost to a secure-input field) resets to idle
+  rather than firing. A false activation from a mistimed hold is worse than an occasional
+  missed one.
 - If the user never completes the "disable Spotlight's Cmd+Space" step, both may fire —
   Amani should not attempt to suppress system Spotlight itself (no supported API for that);
   the setup assistant just keeps surfacing the one remaining manual step until it detects the
@@ -143,18 +199,24 @@ No persistence needed in M1 beyond the app index cache (rebuilt on `/Application
 - `FileSearchProvider` and `AppLauncherProvider` tested against fakes/protocols rather than
   hitting the real filesystem/`mdfind` in unit tests; a small number of integration tests may
   shell out for real in CI on macOS runners.
-- Manual test pass before considering M1 done: hotkey open/close latency, launching a handful
-  of real apps, searching for real files, calculator edge cases (division by zero, malformed
-  input).
+- `ModifierHoldTrigger`'s state machine is tested in isolation by feeding it synthetic
+  flags-changed event sequences (a fake clock, not real 5-second waits) — cover: clean hold to
+  threshold (fires), other-key-during-hold (cancels), early release (cancels), and threshold
+  boundary (fires at exactly the configured duration, not before).
+- Manual test pass before considering M1 done: hotkey open/close latency, menu bar icon
+  click, modifier-hold gesture at the real default duration, launching a handful of real apps,
+  searching for real files, calculator edge cases (division by zero, malformed input), and
+  confirming all three triggers can be individually disabled without affecting the other two.
 
 ### 4.6 Tooling & repo
 
 - Swift + SwiftUI, macOS 14+ (matching `MacVoiceInput`'s baseline).
 - XcodeGen (`project.yml`) for project generation — no committed `.xcodeproj` internals.
 - New GitHub repo `connorodea/amani`, MIT license, public from the start (FOSS is the point).
-- Global hotkey capture uses an existing, actively-maintained open-source Swift library
-  (e.g. `HotKey`) rather than hand-rolled Carbon event-tap code — in line with the
-  build-with-existing-FOSS-tools steer for this project generally.
+- `HotkeyTrigger`'s combo capture uses an existing, actively-maintained open-source Swift
+  library (e.g. `HotKey`) rather than hand-rolled Carbon event-tap code — in line with the
+  build-with-existing-FOSS-tools steer for this project generally. `ModifierHoldTrigger` and
+  `MenuBarTrigger` use plain AppKit (`NSEvent`, `NSStatusItem`) — no library needed for either.
 
 ## 5. Open questions carried into later milestones
 

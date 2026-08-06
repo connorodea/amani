@@ -113,7 +113,9 @@ elegant, minimal, nothing left to chance.
 ## System modules
 
 - **OverlayWindow / SearchView** — the floating Spotlight-style command bar (M1)
-- **HotkeyManager** — global Cmd+Space capture + guided Spotlight-disable setup (M1)
+- **ActivationManager** — every way to summon Amani, each independently toggleable: global
+  hotkey combo (default Cmd+Space), modifier-hold gesture (default: hold Cmd alone 5s), and
+  a persistent menu bar icon — plus guided Spotlight-disable setup (M1)
 - **SearchController** — query fan-out, debounce, merge/rank across all providers (M1)
 - **Result Providers** (protocol-based, uniform across all milestones):
   - AppLauncherProvider, FileSearchProvider, CalculatorProvider (M1)
@@ -164,7 +166,7 @@ additional provider connectors, clipboard history, snippets, plugin system (M4).
 
 Each milestone above is one spec → plan → build cycle (per the `brainstorming` →
 `writing-plans` flow already in use). Within a milestone, decompose into the sub-goals implied
-by its "System modules" entries above — e.g. M1 splits cleanly into HotkeyManager+OverlayWindow
+by its "System modules" entries above — e.g. M1 splits cleanly into ActivationManager+OverlayWindow
 (shell), then the three M1 result providers (can build in parallel once the `ResultProvider`
 protocol is fixed). Track milestone-level work in a `GOALS.md` (via the `northstar` skill) if/when
 the backlog grows past what a single spec's task list can hold; day-to-day tasks can live in
@@ -209,6 +211,10 @@ Todoist once a tracker is set up for this repo, matching the pattern used on you
 
 ## Changelog
 
+- 2026-08-06 v3 — Replaced single-hotkey `HotkeyManager` with `ActivationManager`, owning
+  three independently-toggleable triggers: hotkey combo, modifier-hold gesture (hold Cmd
+  alone 5s by default), and a persistent menu bar icon. Menu bar icon now also serves as the
+  reliability fallback when Accessibility permission is denied.
 - 2026-08-06 v2 — Added Design philosophy (nervous-system architecture metaphor + golden
   ratio/classical-precision visual and engineering discipline). Reframed north star around
   Amani as the ecosystem's nervous system, not just a launcher. Documented the
