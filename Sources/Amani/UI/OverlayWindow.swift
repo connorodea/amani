@@ -26,7 +26,21 @@ final class OverlayWindowController {
         // confirmed via Console: "Window ... ordered front from a non-active application
         // and may order beneath the active application's windows."
         NSApp.activate(ignoringOtherApps: true)
+
+        // Fade + scale in from a slightly-smaller, slightly-lower starting point, rather than
+        // an abrupt pop — a small but real perceived-quality difference for a launcher that's
+        // summoned constantly.
+        panel.alphaValue = 0
+        let targetFrame = panel.frame
+        panel.setFrame(Self.scaledFrame(targetFrame, by: 0.96), display: false)
         panel.makeKeyAndOrderFront(nil)
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.14
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+            panel.animator().setFrame(targetFrame, display: true)
+        }
         isVisible = true
     }
 
@@ -35,9 +49,26 @@ final class OverlayWindowController {
             isVisible = false
             return
         }
-        panel.orderOut(nil)
+        let shrunkFrame = Self.scaledFrame(panel.frame, by: 0.96)
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.1
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0
+            panel.animator().setFrame(shrunkFrame, display: true)
+        }, completionHandler: {
+            panel.orderOut(nil)
+        })
         searchController.query = ""
         isVisible = false
+    }
+
+    private static func scaledFrame(_ frame: NSRect, by factor: CGFloat) -> NSRect {
+        let newSize = NSSize(width: frame.width * factor, height: frame.height * factor)
+        let origin = NSPoint(
+            x: frame.midX - newSize.width / 2,
+            y: frame.midY - newSize.height / 2
+        )
+        return NSRect(origin: origin, size: newSize)
     }
 
     private func makePanel() -> NSPanel {

@@ -58,9 +58,24 @@ struct OrbView: NSViewRepresentable {
         let rotation = SCNAction.repeatForever(rotateAction)
         orbNode.runAction(rotation, forKey: "rotate")
 
+        // A slow breathing scale pulse — the "rhythmic, moon-like" motion called for in the
+        // design spec is more than just spin; a gentle pulse reads as alive rather than
+        // mechanical, and speeds up subtly when active (a query is in flight).
+        orbNode.removeAction(forKey: "breathe")
+        let pulseDuration = state == .active ? 0.9 : 1.6
+        let scaleUp = SCNAction.scale(to: 1.06, duration: pulseDuration)
+        scaleUp.timingMode = .easeInEaseOut
+        let scaleDown = SCNAction.scale(to: 1.0, duration: pulseDuration)
+        scaleDown.timingMode = .easeInEaseOut
+        let breathe = SCNAction.repeatForever(.sequence([scaleUp, scaleDown]))
+        orbNode.runAction(breathe, forKey: "breathe")
+
         if let glowNode = view.scene?.rootNode.childNode(withName: "glow", recursively: false),
            let material = glowNode.geometry?.firstMaterial {
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 0.25
             material.emission.intensity = CGFloat(params.glowIntensity)
+            SCNTransaction.commit()
         }
     }
 
@@ -68,9 +83,12 @@ struct OrbView: NSViewRepresentable {
         let scene = SCNScene()
 
         let sphere = SCNSphere(radius: 1.0)
-        sphere.segmentCount = 24 // faceted, globe-like rather than perfectly smooth
-        sphere.firstMaterial?.diffuse.contents = NSColor.controlAccentColor
-        sphere.firstMaterial?.specular.contents = NSColor.white
+        sphere.segmentCount = 32 // faceted, globe-like rather than perfectly smooth
+        let orbMaterial = sphere.firstMaterial
+        orbMaterial?.lightingModel = .physicallyBased
+        orbMaterial?.diffuse.contents = NSColor.controlAccentColor
+        orbMaterial?.metalness.contents = 0.35
+        orbMaterial?.roughness.contents = 0.28
         let orbNode = SCNNode(geometry: sphere)
         orbNode.name = "orb"
         scene.rootNode.addChildNode(orbNode)
@@ -100,16 +118,29 @@ struct OrbView: NSViewRepresentable {
         // 3D form rather than a flat-shaded dot, even at icon size.
         let keyLight = SCNLight()
         keyLight.type = .omni
-        keyLight.intensity = 900
+        keyLight.intensity = 1100
+        keyLight.color = NSColor.white
         let keyLightNode = SCNNode()
         keyLightNode.light = keyLight
         keyLightNode.position = SCNVector3(2, 2, 4)
         scene.rootNode.addChildNode(keyLightNode)
 
+        // Cool rim light from the opposite side — a classic two-light setup that separates the
+        // sphere's edge from its own base color instead of one flat warm highlight, giving it
+        // more visible dimension at a small render size.
+        let rimLight = SCNLight()
+        rimLight.type = .omni
+        rimLight.intensity = 500
+        rimLight.color = NSColor(calibratedRed: 0.55, green: 0.75, blue: 1.0, alpha: 1.0)
+        let rimLightNode = SCNNode()
+        rimLightNode.light = rimLight
+        rimLightNode.position = SCNVector3(-2.5, -1, 2.5)
+        scene.rootNode.addChildNode(rimLightNode)
+
         // Ambient fill so the shadowed side of the sphere isn't pure black at this small size.
         let ambientLight = SCNLight()
         ambientLight.type = .ambient
-        ambientLight.intensity = 250
+        ambientLight.intensity = 200
         ambientLight.color = NSColor.controlAccentColor
         let ambientLightNode = SCNNode()
         ambientLightNode.light = ambientLight

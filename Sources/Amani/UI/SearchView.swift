@@ -22,6 +22,7 @@ struct SearchView: View {
     let onSubmit: (SearchResult) -> Void
 
     @State private var selectedIndex = 0
+    @FocusState private var searchFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,30 +32,70 @@ struct SearchView: View {
                 TextField("Search apps, files, or type a sum…", text: $searchController.query)
                     .textFieldStyle(.plain)
                     .font(.system(size: Layout.fontSize))
+                    .focused($searchFieldFocused)
             }
             .padding(Layout.spacingCozy)
 
             if !searchController.results.isEmpty {
                 Divider()
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(Array(searchController.results.enumerated()), id: \.element.id) { index, result in
-                            ResultRowView(result: result, isSelected: index == selectedIndex)
-                                .onTapGesture { onSubmit(result) }
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        LazyVStack(spacing: 2) {
+                            ForEach(Array(searchController.results.enumerated()), id: \.element.id) { index, result in
+                                ResultRowView(result: result, isSelected: index == selectedIndex)
+                                    .id(index)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        selectedIndex = index
+                                        onSubmit(result)
+                                    }
+                            }
+                        }
+                        .padding(Layout.spacingTight)
+                    }
+                    .frame(maxHeight: Layout.resultsMaxHeight)
+                    .onChange(of: selectedIndex) { _, newValue in
+                        withAnimation(.easeOut(duration: 0.12)) {
+                            scrollProxy.scrollTo(newValue, anchor: .center)
                         }
                     }
-                    .padding(Layout.spacingTight)
                 }
-                .frame(maxHeight: Layout.resultsMaxHeight)
+
+                Divider()
+                HStack(spacing: Layout.spacingTight) {
+                    Spacer()
+                    Label("navigate", systemImage: "arrow.up.arrow.down")
+                    Label("select", systemImage: "return")
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Layout.spacingCozy)
+                .padding(.vertical, 6)
             }
         }
         .frame(width: Layout.panelWidth)
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+            RoundedRectangle(cornerRadius: Layout.cornerRadius, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
         )
         .onChange(of: searchController.results.count) { _, _ in selectedIndex = 0 }
+        .onKeyPress(.downArrow) {
+            guard !searchController.results.isEmpty else { return .ignored }
+            selectedIndex = min(selectedIndex + 1, searchController.results.count - 1)
+            return .handled
+        }
+        .onKeyPress(.upArrow) {
+            guard !searchController.results.isEmpty else { return .ignored }
+            selectedIndex = max(selectedIndex - 1, 0)
+            return .handled
+        }
+        .onKeyPress(.return) {
+            guard searchController.results.indices.contains(selectedIndex) else { return .ignored }
+            onSubmit(searchController.results[selectedIndex])
+            return .handled
+        }
+        .onAppear { searchFieldFocused = true }
     }
 }
