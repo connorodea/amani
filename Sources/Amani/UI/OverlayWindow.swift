@@ -20,8 +20,13 @@ final class OverlayWindowController {
         let panel = self.panel ?? makePanel()
         self.panel = panel
         positionCentered(panel)
-        panel.makeKeyAndOrderFront(nil)
+        // Activate the app BEFORE ordering the panel front. Calling activate() after
+        // orderFront() lets the OS order the panel front while Amani is still a background
+        // (non-active) app, which stacks it beneath whatever app is actually frontmost —
+        // confirmed via Console: "Window ... ordered front from a non-active application
+        // and may order beneath the active application's windows."
         NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
         isVisible = true
     }
 
