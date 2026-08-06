@@ -62,6 +62,8 @@ Amani.app
 ├── AppDelegate            — lifecycle, activation trigger registration, panel show/hide
 ├── OverlayWindow (NSPanel)— borderless, floating, centered, key window on activate
 ├── SearchView (SwiftUI)   — text field + results list, Spotlight-style
+├── OrbView (SceneKit)     — the signature visual: a small rotating 3D orb/globe next to
+│                             the search field, Siri-inspired ambient motion, glow shader
 ├── SearchController       — owns query state, debounces input, fans out to providers
 ├── Result Providers        (protocol-based, so M2+ providers slot in identically)
 │   ├── AppLauncherProvider — enumerates + launches .app bundles via NSWorkspace
@@ -152,6 +154,18 @@ protocol ResultProvider {
   Spotlight's UI is being replaced.
 - **CalculatorProvider**: parses simple arithmetic expressions in-process, shown as the first
   result when the query looks numeric.
+- **OrbView**: an `SCNView` (SceneKit) wrapped for SwiftUI, rendering a small rotating
+  orb/globe next to the search field — the signature visual, Siri-inspired rather than a
+  literal port of `three-globe` (that's a Three.js/WebGL library; embedding a web view for
+  decoration would cost real launch latency and pull in a whole web stack, contrary to the
+  "respond at Spotlight speed" and zero-heavy-dependency principles already in the vision).
+  Built from an `SCNSphere` (or a low-poly `SCNGeometry` for a faceted "wireframe globe"
+  look) with a rim-light/glow shader modifier, continuously rotating with eased,
+  non-constant-speed motion (rhythmic, pendulum-like — not a flat linear spin) for the
+  astronomical/moon-like feel. Two states in M1: **idle** (slow ambient rotation, present but
+  calm) and **active** (subtle speed-up + glow pulse while the user is typing/a query is in
+  flight) — a natural hook for M2 to later reflect real agent activity (busier orb when
+  agents are running), but M1 only needs the two states tied to local typing/search activity.
 - **SetupAssistant**: run once on first launch; requests Accessibility permission (needed for
   `HotkeyTrigger`/`ModifierHoldTrigger` + eventually for agent process control in M2), hands
   off to the guided Spotlight-disable step, and presents the trigger list so the user can
@@ -213,10 +227,21 @@ No persistence needed in M1 beyond the app index cache (rebuilt on `/Application
 - Swift + SwiftUI, macOS 14+ (matching `MacVoiceInput`'s baseline).
 - XcodeGen (`project.yml`) for project generation — no committed `.xcodeproj` internals.
 - New GitHub repo `connorodea/amani`, MIT license, public from the start (FOSS is the point).
-- `HotkeyTrigger`'s combo capture uses an existing, actively-maintained open-source Swift
-  library (e.g. `HotKey`) rather than hand-rolled Carbon event-tap code — in line with the
-  build-with-existing-FOSS-tools steer for this project generally. `ModifierHoldTrigger` and
-  `MenuBarTrigger` use plain AppKit (`NSEvent`, `NSStatusItem`) — no library needed for either.
+- **Zero third-party dependencies for activation** — adapted directly from proven code already
+  in `MacVoiceInput` (`GlobalHotkeyManager.swift`, `TripleCommandDetector.swift`,
+  `PermissionManager.swift`), same author, no licensing concern:
+  - `HotkeyTrigger` uses Carbon's `RegisterEventHotKey` directly (real key + modifier combo,
+    e.g. Space+Cmd) — first-party API, no special permission required, no third-party hotkey
+    library needed.
+  - `ModifierHoldTrigger` uses a `CGEvent.tapCreate` listen-only event tap (bare modifier chord
+    has no key code, so it can't go through `RegisterEventHotKey`) — this is the same mechanism
+    MacVoiceInput's push-to-talk-via-modifier-chord and triple-command detector already use.
+    **Requires Input Monitoring permission** (`CGPreflightListenEventAccess`/
+    `CGRequestListenEventAccess`), distinct from Accessibility — same as MacVoiceInput.
+  - `MenuBarTrigger` uses plain AppKit `NSStatusItem` — no permission needed at all.
+  - Respects secure input (`IsSecureEventInputEnabled()`) the same way MacVoiceInput's
+    detector does — `ModifierHoldTrigger` refuses to arm while a secure-input field (e.g. a
+    password field) is focused, failing safe rather than firing.
 
 ## 5. Open questions carried into later milestones
 
