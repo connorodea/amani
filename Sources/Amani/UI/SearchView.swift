@@ -102,6 +102,7 @@ struct SearchView: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .onAppear { searchFieldFocused = true }
+        .onChange(of: searchController.activationTick) { _, _ in searchFieldFocused = true }
     }
 }
 

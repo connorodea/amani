@@ -27,6 +27,13 @@ final class OverlayWindowController {
     private let searchController: SearchController
     private var keyMonitor: Any?
     private var onSubmitSelected: (() -> Void)?
+    // Bumped on every show()/hide(); a hide()'s animation completion handler only calls
+    // orderOut(nil) if this still matches the generation it captured. Without this, a rapid
+    // hide() followed by a show() (double-tapping the toggle hotkey) races: the stale hide's
+    // completion handler fires after the new show() already made the panel visible again, and
+    // yanks it back off-screen — the panel then needs a 3rd toggle to reappear, since isVisible
+    // is left reading `true` while the window is actually hidden.
+    private var animationGeneration = 0
 
     init(searchController: SearchController? = nil) {
         self.searchController = searchController ?? SearchController(providers: [])
@@ -38,9 +45,17 @@ final class OverlayWindowController {
 
     func show() {
         guard !isVisible else { return }
+        animationGeneration += 1
         let panel = self.panel ?? makePanel()
         self.panel = panel
         positionCentered(panel)
+        // The panel/NSHostingView/SwiftUI view are created once and reused across every
+        // show()/hide() cycle, so SwiftUI's `.onAppear` (which only fires once per view
+        // lifetime) can't be relied on to refocus the search field after the first open —
+        // confirmed by review: after open→close→reopen, `.onAppear` never fires again and
+        // nothing else calls back into first-responder. `recordActivation()` gives the view an
+        // explicit signal on every show(), not just the first.
+        searchController.recordActivation()
         // Activate the app BEFORE ordering the panel front. Calling activate() after
         // orderFront() lets the OS order the panel front while Amani is still a background
         // (non-active) app, which stacks it beneath whatever app is actually frontmost —
@@ -71,13 +86,19 @@ final class OverlayWindowController {
             isVisible = false
             return
         }
+        animationGeneration += 1
+        let generationAtHide = animationGeneration
         let shrunkFrame = Self.scaledFrame(panel.frame, by: 0.96)
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.1
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
             panel.animator().setFrame(shrunkFrame, display: true)
-        }, completionHandler: {
+        }, completionHandler: { [weak self] in
+            // Only order out if no newer show()/hide() has superseded this one — otherwise a
+            // rapid re-show() that happened while this animation was still in flight would get
+            // yanked back off-screen by this now-stale completion. See `animationGeneration`.
+            guard self?.animationGeneration == generationAtHide else { return }
             panel.orderOut(nil)
         })
         searchController.query = ""

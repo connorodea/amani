@@ -9,6 +9,15 @@ final class SearchController: ObservableObject {
         didSet { scheduleSearch() }
     }
     @Published var selectedIndex: Int = 0
+    /// Bumped by `OverlayWindowController.show()` on every activation, including reopens of a
+    /// cached panel — `SearchView` observes this (alongside `.onAppear`) to reclaim keyboard
+    /// focus each time, since `.onAppear` alone only fires once for a view that's reused across
+    /// show/hide cycles rather than recreated.
+    @Published private(set) var activationTick = 0
+
+    func recordActivation() {
+        activationTick += 1
+    }
 
     func moveSelection(by delta: Int) {
         guard !results.isEmpty else { return }
