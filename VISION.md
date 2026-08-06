@@ -189,7 +189,18 @@ Todoist once a tracker is set up for this repo, matching the pattern used on you
   name for the PKM tool) before this becomes a repo of its own.
 - Where and how `ainervousystem.com` actually serves Amani content (redirect vs. reverse
   proxy vs. dedicated landing page on `hetznerLR`) — DNS points there as of 2026-08-06, no
-  site exists yet.
+  site exists yet. **Update 2026-08-06:** resolved for now — a golden-ratio-proportioned
+  "Amani M1" placeholder is live at https://ainervousystem.com (HTTPS, `hetznerLR`,
+  `/var/www/amani-placeholder`) until the real app/marketing site exists.
+- **CATO** (`~/developer/ChiefArchitectOfficer`, domain `chiefarchitectofficer.com`) — an
+  already-mature, separate project ("the auditory command center for agentic architecture":
+  voice-first supervision of multiple concurrent agent harnesses, visual portal for
+  intervention). Direction as of 2026-08-06: CATO becomes a handheld voice device that
+  integrates directly with Amani M1, with **Amani M1 as its local access point**. Not yet
+  scoped — needs its own design pass grounded in CATO's existing vision.md/northstar.md/specs
+  before any integration work starts.
+- **Saddlepoint** — working name for the cloud-hosted counterpart to Amani M1, integrating
+  directly with it (local app ↔ cloud service split). Named 2026-08-06; not yet scoped.
 
 ## Changelog
 
