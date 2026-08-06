@@ -1,11 +1,32 @@
 import AppKit
 import SwiftUI
 
+/// A borderless `.nonactivatingPanel` returns NO from `canBecomeKeyWindow` by default —
+/// confirmed via Console: "-[NSWindow makeKeyWindow] called on <NSPanel> which returned NO
+/// from -[NSWindow canBecomeKeyWindow]." Without overriding this, the panel can display but
+/// can never actually receive keyboard input, so the search field is untypable. Overriding
+/// `canBecomeKey`/`canBecomeMain` fixes that while `.nonactivatingPanel` still does its other
+/// job of not stealing focus from other apps at the moment the panel is *ordered* front.
+final class OverlayPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+private enum KeyCode {
+    static let downArrow: UInt16 = 125
+    static let upArrow: UInt16 = 126
+    static let returnKey: UInt16 = 36
+    static let numpadEnter: UInt16 = 76
+    static let escape: UInt16 = 53
+}
+
 @MainActor
 final class OverlayWindowController {
     private(set) var isVisible = false
     private var panel: NSPanel?
     private let searchController: SearchController
+    private var keyMonitor: Any?
+    private var onSubmitSelected: (() -> Void)?
 
     init(searchController: SearchController? = nil) {
         self.searchController = searchController ?? SearchController(providers: [])
@@ -42,6 +63,7 @@ final class OverlayWindowController {
             panel.animator().setFrame(targetFrame, display: true)
         }
         isVisible = true
+        installKeyMonitor()
     }
 
     func hide() {
@@ -60,6 +82,42 @@ final class OverlayWindowController {
         })
         searchController.query = ""
         isVisible = false
+        removeKeyMonitor()
+    }
+
+    /// Arrow/return/escape navigation is handled here — via a local `NSEvent` monitor — rather
+    /// than SwiftUI's `.onKeyPress`, which was found (via a Console-log-confirmed regression) to
+    /// swallow ordinary character keystrokes before they reached the search field's own field
+    /// editor on this SwiftUI/AppKit combination. A monitor scoped to only these four key codes,
+    /// which returns the event untouched for everything else, can't have that failure mode.
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            switch event.keyCode {
+            case KeyCode.downArrow:
+                searchController.moveSelection(by: 1)
+                return nil
+            case KeyCode.upArrow:
+                searchController.moveSelection(by: -1)
+                return nil
+            case KeyCode.returnKey, KeyCode.numpadEnter:
+                if searchController.selectedResult != nil {
+                    onSubmitSelected?()
+                }
+                return nil
+            case KeyCode.escape:
+                hide()
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
     }
 
     private static func scaledFrame(_ frame: NSRect, by factor: CGFloat) -> NSRect {
@@ -72,20 +130,22 @@ final class OverlayWindowController {
     }
 
     private func makePanel() -> NSPanel {
+        let submit: (SearchResult) -> Void = { [weak self] result in
+            ActionExecutor.perform(result.action)
+            self?.hide()
+        }
+        onSubmitSelected = { [weak self] in
+            guard let self, let selected = searchController.selectedResult else { return }
+            submit(selected)
+        }
         let hostingView = NSHostingView(
-            rootView: SearchView(
-                searchController: searchController,
-                onSubmit: { [weak self] result in
-                    ActionExecutor.perform(result.action)
-                    self?.hide()
-                }
-            )
+            rootView: SearchView(searchController: searchController, onSubmit: submit)
         )
         // Borderless, not `.titled` — `.titled` (even with titleVisibility hidden) leaves a
         // visible native titlebar strip and window-chrome border, confirmed by direct visual
         // inspection on real hardware. `.borderless` + `.nonactivatingPanel` is the standard
         // recipe for a true chromeless Spotlight/Alfred-style overlay.
-        let panel = NSPanel(
+        let panel = OverlayPanel(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 80),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,

@@ -2,9 +2,21 @@ import Foundation
 
 @MainActor
 final class SearchController: ObservableObject {
-    @Published private(set) var results: [SearchResult] = []
+    @Published private(set) var results: [SearchResult] = [] {
+        didSet { selectedIndex = 0 }
+    }
     @Published var query: String = "" {
         didSet { scheduleSearch() }
+    }
+    @Published var selectedIndex: Int = 0
+
+    func moveSelection(by delta: Int) {
+        guard !results.isEmpty else { return }
+        selectedIndex = min(max(selectedIndex + delta, 0), results.count - 1)
+    }
+
+    var selectedResult: SearchResult? {
+        results.indices.contains(selectedIndex) ? results[selectedIndex] : nil
     }
 
     private let providers: [ResultProvider]

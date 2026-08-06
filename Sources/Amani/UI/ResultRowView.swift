@@ -7,35 +7,56 @@ struct ResultRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             iconView
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(result.title)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundStyle(.primary)
                 Text(result.subtitle)
-                    .font(.system(size: 11))
+                    .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(isSelected ? Color.primary.opacity(0.08) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(isSelected ? Color.accentColor.opacity(0.35) : .clear, lineWidth: 1)
+        )
     }
 
     @ViewBuilder
     private var iconView: some View {
-        switch result.icon {
-        case .app(let bundleURL):
-            Image(nsImage: NSWorkspace.shared.icon(forFile: bundleURL.path))
-                .resizable()
-                .frame(width: 28, height: 28)
-        case .file:
-            Image(systemName: "doc")
-                .frame(width: 28, height: 28)
-        case .system(let symbolName):
-            Image(systemName: symbolName)
-                .frame(width: 28, height: 28)
+        Group {
+            switch result.icon {
+            case .app(let bundleURL):
+                Image(nsImage: NSWorkspace.shared.icon(forFile: bundleURL.path))
+                    .resizable()
+            case .file:
+                Image(systemName: "doc.text")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            case .system(let symbolName):
+                Image(systemName: symbolName)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
         }
+        .frame(width: 26, height: 26)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+                .opacity(isFileOrSystemIcon ? 1 : 0)
+        )
+    }
+
+    private var isFileOrSystemIcon: Bool {
+        if case .app = result.icon { return false }
+        return true
     }
 }
