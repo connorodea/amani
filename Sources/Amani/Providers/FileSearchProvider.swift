@@ -5,6 +5,12 @@ protocol ShellRunning {
 }
 
 final class ProcessShellRunner: ShellRunning {
+    private let timeoutSeconds: TimeInterval
+
+    init(timeoutSeconds: TimeInterval = 2.0) {
+        self.timeoutSeconds = timeoutSeconds
+    }
+
     func run(_ executable: String, arguments: [String]) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -17,8 +23,20 @@ final class ProcessShellRunner: ShellRunning {
         } catch {
             return ""
         }
+
+        // SearchController's per-provider timeout only stops *waiting* on this call's result —
+        // it doesn't touch the underlying process. mdfind can hang during Spotlight reindexing
+        // or on a flaky volume; without this, that would pin this thread (and its slot on the
+        // shared dispatch queue other providers also use) indefinitely.
+        let watchdog = DispatchWorkItem { [weak process] in
+            guard let process, process.isRunning else { return }
+            process.terminate()
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeoutSeconds, execute: watchdog)
+
         let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        watchdog.cancel()
         return String(data: data, encoding: .utf8) ?? ""
     }
 }
