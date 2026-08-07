@@ -11,9 +11,13 @@ protocol AppEnumerating {
 }
 
 final class NSWorkspaceAppEnumerator: AppEnumerating {
-    private let searchDirectories = [
+    let searchDirectories = [
         "/Applications",
         "/System/Applications",
+        // Terminal, Console, Disk Utility, Activity Monitor, and other system utilities live
+        // here, not directly under /System/Applications — confirmed missing from search
+        // results on real hardware before this was added.
+        "/System/Applications/Utilities",
         "\(NSHomeDirectory())/Applications",
     ]
 

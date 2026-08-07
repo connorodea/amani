@@ -49,4 +49,12 @@ final class AppLauncherProviderTests: XCTestCase {
 
         XCTAssertEqual(result.action, .launchApp(bundleURL: URL(fileURLWithPath: "/Applications/Safari.app")))
     }
+
+    func testSearchDirectoriesIncludeSystemUtilities() {
+        // Terminal, Console, Disk Utility, Activity Monitor, etc. live in
+        // /System/Applications/Utilities, not directly under /System/Applications — confirmed
+        // missing from real search results before this was added as its own entry.
+        let enumerator = NSWorkspaceAppEnumerator()
+        XCTAssertTrue(enumerator.searchDirectories.contains("/System/Applications/Utilities"))
+    }
 }
