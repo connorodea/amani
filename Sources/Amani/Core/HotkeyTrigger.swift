@@ -70,6 +70,16 @@ final class HotkeyTrigger: ActivationTrigger {
         onActivate = nil
     }
 
+    // `handleCarbonEvent` is reached via `Unmanaged.passUnretained(self)` from the Carbon event
+    // handler, so nothing keeps this object alive on its behalf — if a future refactor ever
+    // deallocates a trigger without calling `stop()` first (today `AppModel` holds it for the
+    // process lifetime, so this doesn't fire in practice), the next system callback would
+    // dereference a dangling pointer. Belt-and-suspenders cleanup.
+    deinit {
+        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        if let eventHandler { RemoveEventHandler(eventHandler) }
+    }
+
     private func handleCarbonEvent(_ event: EventRef) -> OSStatus {
         var hotKeyID = EventHotKeyID()
         let status = GetEventParameter(

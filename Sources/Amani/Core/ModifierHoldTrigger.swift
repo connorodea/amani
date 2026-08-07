@@ -127,6 +127,16 @@ final class ModifierHoldTrigger: ActivationTrigger {
         machine = ModifierHoldStateMachine(thresholdSeconds: thresholdSeconds)
     }
 
+    // The CGEventTap callback is reached via `Unmanaged.passUnretained(self)`, so nothing keeps
+    // this object alive on its behalf — belt-and-suspenders cleanup if a future refactor ever
+    // deallocates a trigger without calling `stop()` first (today `AppModel` holds it for the
+    // process lifetime, so this doesn't fire in practice).
+    deinit {
+        pollTimer?.invalidate()
+        if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
+        if let eventTap { CFMachPortInvalidate(eventTap) }
+    }
+
     private func handle(type: CGEventType, event: CGEvent) {
         // Fail safe: never arm while a secure-input field (e.g. a password field) is focused.
         guard !IsSecureEventInputEnabled() else { return }
