@@ -3,6 +3,10 @@ import SwiftUI
 struct SetupView: View {
     @ObservedObject var setupAssistant: SetupAssistant
     @ObservedObject var permissionManager: PermissionManager
+    /// `ModifierHoldTrigger.start()` silently no-ops if Input Monitoring isn't granted yet at
+    /// launch — refreshing permission state alone doesn't retry it. This restarts every enabled
+    /// trigger (harmless for ones already running; each trigger's own `start()` is idempotent).
+    let restartTriggers: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -34,6 +38,7 @@ struct SetupView: View {
             Button("I've granted permissions — refresh") {
                 permissionManager.refresh()
                 setupAssistant.refreshSpotlightBindingState()
+                restartTriggers()
             }
         }
         .padding(24)

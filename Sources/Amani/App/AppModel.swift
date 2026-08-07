@@ -64,7 +64,11 @@ final class AppModel {
         }
 
         let hostingView = NSHostingView(
-            rootView: SetupView(setupAssistant: setupAssistant, permissionManager: permissionManager)
+            rootView: SetupView(
+                setupAssistant: setupAssistant,
+                permissionManager: permissionManager,
+                restartTriggers: { [activationManager] in activationManager.start() }
+            )
         )
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 320),
