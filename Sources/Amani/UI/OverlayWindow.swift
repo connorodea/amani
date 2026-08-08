@@ -72,14 +72,20 @@ final class OverlayWindowController {
         panel.makeKeyAndOrderFront(nil)
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.14
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.duration = 0.16
+            context.timingFunction = Self.premiumEasing
             panel.animator().alphaValue = 1
             panel.animator().setFrame(targetFrame, display: true)
         }
         isVisible = true
         installKeyMonitor()
     }
+
+    /// bezier(0.16, 1, 0.3, 1) — an "ease-out expo"-style curve (fast start, long soft
+    /// settle) sourced from design-system research for premium developer-tool/launcher
+    /// products, in place of the flatter, more mechanical-feeling stock `.easeOut`/`.easeIn`
+    /// curves used previously.
+    private static let premiumEasing = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
 
     func hide() {
         guard isVisible, let panel else {

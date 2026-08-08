@@ -21,9 +21,9 @@ enum OrbState: Equatable {
     var animationParameters: AnimationParameters {
         switch self {
         case .idle:
-            return AnimationParameters(rotationSpeed: 0.15, glowIntensity: 0.35)
+            return AnimationParameters(rotationSpeed: 0.08, glowIntensity: 0.12)
         case .active:
-            return AnimationParameters(rotationSpeed: 0.6, glowIntensity: 0.85)
+            return AnimationParameters(rotationSpeed: 0.35, glowIntensity: 0.3)
         }
     }
 }
@@ -60,23 +60,19 @@ struct OrbView: NSViewRepresentable {
         guard let orbNode = view.scene?.rootNode.childNode(withName: "orb", recursively: false) else { return }
         let params = state.animationParameters
 
+        // A slow, continuous rotation is the orb's only constant motion — a "rhythmic,
+        // moon-like" quality per the original design intent. A prior version also added a
+        // continuous breathing scale-pulse on top of this; removed. A shape that's
+        // perpetually rotating AND pulsing AND glowing reads as an attention-grabbing toy,
+        // not a restrained status indicator — closer to a bouncing mascot than the
+        // Vercel/Anthropic/Apple/OpenAI-level restraint this app is aiming for. Rotation
+        // alone, slow and quiet, still conveys "alive" without that.
         orbNode.removeAction(forKey: "rotate")
         let rotateAction = SCNAction.rotateBy(x: 0, y: CGFloat(params.rotationSpeed) * .pi, z: 0, duration: 1.0)
         rotateAction.timingMode = .easeInEaseOut
         let rotation = SCNAction.repeatForever(rotateAction)
         orbNode.runAction(rotation, forKey: "rotate")
-
-        // A slow breathing scale pulse — the "rhythmic, moon-like" motion called for in the
-        // design spec is more than just spin; a gentle pulse reads as alive rather than
-        // mechanical, and speeds up subtly when active (a query is in flight).
         orbNode.removeAction(forKey: "breathe")
-        let pulseDuration = state == .active ? 0.9 : 1.6
-        let scaleUp = SCNAction.scale(to: 1.06, duration: pulseDuration)
-        scaleUp.timingMode = .easeInEaseOut
-        let scaleDown = SCNAction.scale(to: 1.0, duration: pulseDuration)
-        scaleDown.timingMode = .easeInEaseOut
-        let breathe = SCNAction.repeatForever(.sequence([scaleUp, scaleDown]))
-        orbNode.runAction(breathe, forKey: "breathe")
 
         if let glowNode = view.scene?.rootNode.childNode(withName: "glow", recursively: false),
            let material = glowNode.geometry?.firstMaterial {
@@ -95,8 +91,8 @@ struct OrbView: NSViewRepresentable {
         let orbMaterial = sphere.firstMaterial
         orbMaterial?.lightingModel = .physicallyBased
         orbMaterial?.diffuse.contents = orbAccent
-        orbMaterial?.metalness.contents = 0.35
-        orbMaterial?.roughness.contents = 0.28
+        orbMaterial?.metalness.contents = 0.2
+        orbMaterial?.roughness.contents = 0.45
         let orbNode = SCNNode(geometry: sphere)
         orbNode.name = "orb"
         scene.rootNode.addChildNode(orbNode)
@@ -108,7 +104,7 @@ struct OrbView: NSViewRepresentable {
         // reflected light of its own, while alpha 1 lets the additive emission actually render.
         glowSphere.firstMaterial?.diffuse.contents = NSColor.black
         glowSphere.firstMaterial?.emission.contents = orbAccent
-        glowSphere.firstMaterial?.emission.intensity = 0.35
+        glowSphere.firstMaterial?.emission.intensity = 0.12
         glowSphere.firstMaterial?.transparencyMode = .aOne
         glowSphere.firstMaterial?.blendMode = .add
         glowSphere.firstMaterial?.lightingModel = .constant // glow shouldn't itself be lit/shaded

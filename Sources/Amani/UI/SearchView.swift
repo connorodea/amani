@@ -10,7 +10,7 @@ private enum Layout {
     static let spacingCozy: CGFloat = 20    // outer padding around the search row
 
     static let cornerRadius: CGFloat = 16
-    static let orbSize: CGFloat = 28        // visually close to the text baseline
+    static let orbSize: CGFloat = 20        // a quiet status indicator, not a mascot
     static let fontSize: CGFloat = 20
     static let panelWidth: CGFloat = 640
     static let resultsMaxHeight: CGFloat = 360
