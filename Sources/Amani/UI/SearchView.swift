@@ -1,19 +1,19 @@
 import SwiftUI
 
-/// Golden-ratio-derived spacing/type scale, per the design philosophy in VISION.md — a single
-/// base unit scaled by φ (1.618) rather than picking pixel values by feel.
+/// A conventional 4pt-multiple spacing scale — replaced an earlier golden-ratio-derived scale
+/// (12 × φⁿ), which produced odd, non-standard values (19, 27, 31...) that stacks-guidance
+/// research flagged directly ("Use design system spacing values... Don't: magic numbers for
+/// spacing"). Every value below is a multiple of 4, matching how native macOS launcher UIs
+/// (and this app's own footer/panel chrome) are actually spaced.
 private enum Layout {
-    static let phi: CGFloat = 1.618
-    static let unit: CGFloat = 12
-
-    static let spacingTight = unit                // ~12 — gap between orb and text field
-    static let spacingCozy = (unit * phi).rounded()      // ~19 — outer padding around the search row
+    static let spacingTight: CGFloat = 12   // gap between orb and text field
+    static let spacingCozy: CGFloat = 20    // outer padding around the search row
 
     static let cornerRadius: CGFloat = 16
-    static let orbSize = (unit * phi * 1.4).rounded()     // ~27, visually close to the text baseline
+    static let orbSize: CGFloat = 28        // visually close to the text baseline
     static let fontSize: CGFloat = 20
-    static let panelWidth: CGFloat = 620
-    static let resultsMaxHeight: CGFloat = 340
+    static let panelWidth: CGFloat = 640
+    static let resultsMaxHeight: CGFloat = 360
 }
 
 /// Keyboard navigation (arrows/return/escape) is driven by an `NSEvent` monitor in
@@ -35,7 +35,7 @@ struct SearchView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 14) {
+            HStack(spacing: Layout.spacingTight) {
                 OrbView(state: searchController.query.isEmpty ? .idle : .active)
                     .frame(width: Layout.orbSize, height: Layout.orbSize)
                 TextField("Search apps, files, or do the math…", text: $searchController.query)
@@ -79,12 +79,12 @@ struct SearchView: View {
                 }
 
                 hairline
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Spacer()
                     KeyBadge(symbol: "arrow.up")
                     KeyBadge(symbol: "arrow.down")
                     Text("navigate")
-                        .padding(.trailing, 10)
+                        .padding(.trailing, 8)
                     KeyBadge(symbol: "return")
                     Text("select")
                 }

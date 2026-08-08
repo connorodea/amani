@@ -1,6 +1,14 @@
 import SceneKit
 import SwiftUI
 
+/// A fixed, deliberately-chosen accent — not `NSColor.controlAccentColor`, which reflects
+/// whatever the user happens to have set in System Settings (blue, purple, pink, graphite...)
+/// and made the orb's color an accident of each Mac's configuration rather than a real design
+/// choice. A restrained, rare accent color (used here and almost nowhere else in the app) is
+/// deliberate — sourced from ui-ux-pro-max's design-system guidance for developer-tool/launcher
+/// products, which converges on a single fixed accent against an otherwise neutral palette.
+private let orbAccent = NSColor(calibratedRed: 0.35, green: 0.43, blue: 0.98, alpha: 1.0)
+
 enum OrbState: Equatable {
     case idle
     case active
@@ -86,7 +94,7 @@ struct OrbView: NSViewRepresentable {
         sphere.segmentCount = 32 // faceted, globe-like rather than perfectly smooth
         let orbMaterial = sphere.firstMaterial
         orbMaterial?.lightingModel = .physicallyBased
-        orbMaterial?.diffuse.contents = NSColor.controlAccentColor
+        orbMaterial?.diffuse.contents = orbAccent
         orbMaterial?.metalness.contents = 0.35
         orbMaterial?.roughness.contents = 0.28
         let orbNode = SCNNode(geometry: sphere)
@@ -99,7 +107,7 @@ struct OrbView: NSViewRepresentable {
         // entire glow sphere invisible regardless of emission. Black diffuse contributes no
         // reflected light of its own, while alpha 1 lets the additive emission actually render.
         glowSphere.firstMaterial?.diffuse.contents = NSColor.black
-        glowSphere.firstMaterial?.emission.contents = NSColor.controlAccentColor
+        glowSphere.firstMaterial?.emission.contents = orbAccent
         glowSphere.firstMaterial?.emission.intensity = 0.35
         glowSphere.firstMaterial?.transparencyMode = .aOne
         glowSphere.firstMaterial?.blendMode = .add
@@ -141,7 +149,7 @@ struct OrbView: NSViewRepresentable {
         let ambientLight = SCNLight()
         ambientLight.type = .ambient
         ambientLight.intensity = 200
-        ambientLight.color = NSColor.controlAccentColor
+        ambientLight.color = orbAccent
         let ambientLightNode = SCNNode()
         ambientLightNode.light = ambientLight
         scene.rootNode.addChildNode(ambientLightNode)
