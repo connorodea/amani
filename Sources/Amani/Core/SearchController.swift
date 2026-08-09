@@ -34,7 +34,12 @@ final class SearchController: ObservableObject {
     private var debounceWorkItem: DispatchWorkItem?
     private var searchGeneration = 0
 
-    init(providers: [ResultProvider], debounceMilliseconds: Int = 120, providerTimeoutMilliseconds: Int = 200) {
+    // 200ms was tuned assuming near-instant provider results; a real `mdfind` invocation
+    // against a real, heavily-indexed Mac (large Library, iCloud sync folders, etc.) measured
+    // 80-140ms on its own before Process-spawn overhead and system load — confirmed via a
+    // real query ("juricratic") that mdfind itself found dozens of matches for, but Amani's
+    // UI showed none, because SearchController stopped waiting before the result arrived.
+    init(providers: [ResultProvider], debounceMilliseconds: Int = 120, providerTimeoutMilliseconds: Int = 900) {
         self.providers = providers
         self.debounceMilliseconds = debounceMilliseconds
         self.providerTimeoutMilliseconds = providerTimeoutMilliseconds
