@@ -7,9 +7,22 @@ import SwiftUI
 /// can never actually receive keyboard input, so the search field is untypable. Overriding
 /// `canBecomeKey`/`canBecomeMain` fixes that while `.nonactivatingPanel` still does its other
 /// job of not stealing focus from other apps at the moment the panel is *ordered* front.
+/// This exact override is independently validated by Maccy (github.com/p0deje/Maccy,
+/// `FloatingPanel.swift`), a 21k-star production clipboard-manager panel solving the
+/// identical problem the identical way.
 final class OverlayPanel: NSPanel {
+    var onResignKey: (() -> Void)?
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    /// Click-outside-to-dismiss — standard launcher-panel behavior (Spotlight, Alfred,
+    /// Raycast, and Maccy's own `FloatingPanel.resignKey()` all do this) that Amani was
+    /// missing entirely; previously the only way to close was Escape or making a selection.
+    override func resignKey() {
+        super.resignKey()
+        onResignKey?()
+    }
 }
 
 private enum KeyCode {
@@ -183,10 +196,20 @@ final class OverlayWindowController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.isMovableByWindowBackground = true
-        panel.level = .floating
+        // `.screenSaver`, not `.floating` — Maccy hit a real bug (github.com/p0deje/Maccy
+        // issue #1403) where `.floating`-level panels could be covered by other apps' own
+        // floating UI (their example: Chrome's autofill dropdown), and even by Spotlight
+        // itself. `.screenSaver` sits above both while still allowing normal interaction.
+        panel.level = .screenSaver
+        // Keep the panel following the user across Spaces and into full-screen apps rather
+        // than being left behind on whichever Space it was first summoned on — another
+        // Maccy-validated setting Amani was missing (default NSPanel collectionBehavior
+        // doesn't include these).
+        panel.collectionBehavior = [.auxiliary, .stationary, .moveToActiveSpace, .fullScreenAuxiliary]
         panel.hasShadow = true
         panel.contentView = hostingView
         panel.isReleasedWhenClosed = false
+        panel.onResignKey = { [weak self] in self?.hide() }
         return panel
     }
 
